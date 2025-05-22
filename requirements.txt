@@ -1,5 +1,5 @@
-streamlit
+streamlit==1.22.0
 tensorflow==2.9.3
 pandas
-numpy
+numpy<2
 plotly
