@@ -18,7 +18,7 @@ def load_data(file) -> pd.DataFrame:
     return df
 
 # Carregando modelo 
-model = load_model_cached("models\model_lstm1.keras")
+model = load_model_cached("model_lstm1.keras")
 
 # extrai tamanho da sequência (seq_length) e número de features
 _, seq_length, n_features = model.input_shape
