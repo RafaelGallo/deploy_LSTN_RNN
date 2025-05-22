@@ -8,27 +8,19 @@ from tensorflow.keras.models import load_model
 st.set_page_config(page_title="Previsão Close Price", layout="wide")
 st.title("📈 Previsão de Fechamento (Close) com LSTM")
 
-# ─── DEBUG: estrutura e detalhes do arquivo ──────────────────────────────────────
+# ─── DEBUG (você pode remover depois) ─────────────────────────────────────────────
 st.subheader("🧐 Debug: Estrutura de arquivos")
-# lista raiz
-root = os.listdir(".")
-st.write("Arquivos/pastas na raiz:", root)
-
-# lista models/
+st.write("Raiz:", os.listdir("."))
 if os.path.isdir("models"):
     lst = os.listdir("models")
-    st.write("Arquivos em models/:", lst)
-    # para cada item, mostre tipo e tamanho
+    st.write("models/:", lst)
     for name in lst:
-        path = os.path.join("models", name)
-        info = os.stat(path)
-        st.write(f"- {name}: is_file={os.path.isfile(path)}, is_dir={os.path.isdir(path)}, size={info.st_size} bytes")
+        p = os.path.join("models", name); info = os.stat(p)
+        st.write(f"- {name}: file={os.path.isfile(p)}, size={info.st_size} bytes")
 else:
-    st.write("❌ Não existe pasta `models/`")
-
+    st.write("❌ Não existe pasta models/")
 # ────────────────────────────────────────────────────────────────────────────────
 
-# Funções de cache
 @st.cache_resource
 def load_model_cached(path: str):
     return load_model(path)
@@ -36,46 +28,49 @@ def load_model_cached(path: str):
 @st.cache_data
 def load_data(file) -> pd.DataFrame:
     df = pd.read_csv(file, parse_dates=['Datetime'])
-    df = df.sort_values('Datetime').reset_index(drop=True)
-    return df
+    return df.sort_values('Datetime').reset_index(drop=True)
 
-# Caminho do modelo
-MODEL_PATH = "models/model_lstm1.keras"
-if not os.path.exists(MODEL_PATH):
-    st.error(f"❌ Caminho não existe: {MODEL_PATH}")
-    st.stop()
-if os.path.isdir(MODEL_PATH):
-    st.error(f"❌ `{MODEL_PATH}` é um diretório, não um arquivo")
+# **USE O .h5 AGORA**
+MODEL_PATH = "models/model_lstm1.h5"
+if not os.path.isfile(MODEL_PATH):
+    st.error(f"❌ Arquivo não encontrado: {MODEL_PATH}")
     st.stop()
 
-# Tenta carregar
 try:
     model = load_model_cached(MODEL_PATH)
 except Exception as e:
-    st.error(f"❌ Erro ao carregar modelo: {e}")
+    st.error(f"❌ Erro ao carregar modelo HDF5: {e}")
     st.stop()
 
-# Extrai seq_length e n_features
+# Extrai sequência e features
 _, seq_length, n_features = model.input_shape
 
-# Uploader e previsão
-uploaded = st.file_uploader("Faça upload do CSV com suas colunas", type=["csv"])
+uploaded = st.file_uploader("Faça upload do CSV com colunas Datetime,Open,High,Low,Close,Volume,Ticker", type="csv")
 if uploaded:
     df = load_data(uploaded)
+    st.subheader("Dados carregados")
+    st.dataframe(df.head())
+
     FEATURES = ['Open','High','Low','Close','Volume']
-    if not all(col in df.columns for col in FEATURES):
-        st.error(f"Seu CSV precisa conter as colunas: {FEATURES}")
+    if not all(c in df.columns for c in FEATURES):
+        st.error(f"Seu CSV precisa conter: {FEATURES}")
         st.stop()
-    last_window = df[FEATURES].values[-seq_length:]
-    X = last_window.reshape(1, seq_length, n_features)
+
+    # Janela de input para LSTM
+    last_w = df[FEATURES].values[-seq_length:]
+    X = last_w.reshape(1, seq_length, n_features)
+
+    # Previsão
     pred = model.predict(X)[0][0]
     next_date = df['Datetime'].iloc[-1] + timedelta(days=1)
-    st.markdown(f"**Data prevista:** {next_date.date()}  **Close previsto:** {pred:.2f}")
+    st.markdown(f"**Data prevista:** {next_date.date()}   **Fechamento previsto:** {pred:.2f}")
+
+    # Plot histórico + previsão
     import plotly.express as px
     hist = df[['Datetime','Close']].rename(columns={'Close':'Preço'})
-    forecast = pd.DataFrame({'Datetime':[next_date], 'Preço':[pred]})
-    fig = px.line(hist, x='Datetime', y='Preço', title="Histórico + Previsão")
-    fig.add_scatter(x=forecast['Datetime'], y=forecast['Preço'],
+    fc = pd.DataFrame({'Datetime':[next_date],'Preço':[pred]})
+    fig = px.line(hist, x='Datetime', y='Preço', title="Histórico de Fechamento + Previsão")
+    fig.add_scatter(x=fc['Datetime'], y=fc['Preço'],
                     mode='markers+text', text=[f"{pred:.2f}"],
                     textposition="bottom center", name='Previsto')
     st.plotly_chart(fig, use_container_width=True)
