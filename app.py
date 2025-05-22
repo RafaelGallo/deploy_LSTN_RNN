@@ -7,7 +7,7 @@ from datetime import timedelta
 st.set_page_config(page_title="Previsão Close Price", layout="wide")
 st.title("📈 Previsão de Fechamento (Close) com LSTM")
 
-@st.cache_data
+@st.cache_resource
 def load_model_cached(path: str):
     return load_model(path)
 
@@ -17,10 +17,10 @@ def load_data(file) -> pd.DataFrame:
     df = df.sort_values('Datetime').reset_index(drop=True)
     return df
 
-# Carregando modelo 
-model = load_model_cached("model_lstm1.keras")
+# Carrega o modelo da pasta models/
+model = load_model_cached("models/model_lstm1.keras")
 
-# extrai tamanho da sequência (seq_length) e número de features
+# Extrai tamanho da sequência (seq_length) e número de features
 _, seq_length, n_features = model.input_shape
 
 uploaded = st.file_uploader("Faça upload do CSV com suas colunas", type=["csv"])
@@ -46,14 +46,13 @@ if uploaded:
 
     # Plota histórico + previsão
     import plotly.express as px
-    hist = df[['Datetime','Close']].copy()
-    hist = hist.rename(columns={'Close':'Preço'})
-    forecast = pd.DataFrame({
-        'Datetime': [next_date],
-        'Preço': [pred]
-    })
+    hist = df[['Datetime','Close']].copy().rename(columns={'Close':'Preço'})
+    forecast = pd.DataFrame({'Datetime': [next_date], 'Preço': [pred]})
+
     fig = px.line(hist, x='Datetime', y='Preço', title="Histórico de Fechamento + Previsão")
-    fig.add_scatter(x=forecast['Datetime'], y=forecast['Preço'],
-                    mode='markers+text', text=[f"{pred:.2f}"], textposition="bottom center",
-                    name='Previsto')
+    fig.add_scatter(
+        x=forecast['Datetime'], y=forecast['Preço'],
+        mode='markers+text', text=[f"{pred:.2f}"],
+        textposition="bottom center", name='Previsto'
+    )
     st.plotly_chart(fig, use_container_width=True)
